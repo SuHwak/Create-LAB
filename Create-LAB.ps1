@@ -1,7 +1,7 @@
 # Assuming Set-ExecutionPolicy RemoteSigned
 
 # Loading Modules
-# . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\Get-FileName.ps1"
+. "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\Get-FileName.ps1"
 # . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\Convert-WindowsImage.ps1"
 
 # Setting Variables
@@ -23,14 +23,19 @@ $secstr = New-Object -TypeName System.Security.SecureString
 $adminPassword.ToCharArray() | ForEach-Object {$secstr.AppendChar($_)}
 $credentials = new-object -typename System.Management.Automation.PSCredential -argumentlist $adminUsername, $secstr
 
-if (!$ISOlocation)
-    {
+if (!$ISOlocation) {
+    while ($ISOlocation -notlike "*.iso") {
+        $ISOLocation = Read-Host -prompt "Please provide the path to the ISO file."
 
-    $ISOLocation = Read-Host -prompt "Please provide the path to the ISO file."
-
+        if (!(Get-ChildItem $ISOlocation -ErrorAction SilentlyContinue)) {
+           Write-Host -ForegroundColor Red "$ISOlocation does not exist"
+           $ISOlocation = $null
+        }
     }
+}
 
-$mountResult = Mount-DiskImage -ImagePath "C:\Users\m.vermeer\Downloads\ISO\Windows Server 2016.ISO" -PassThru
+
+$mountResult = Mount-DiskImage -ImagePath $ISOlocation -PassThru
 
 $driveLetter = ($mountResult | Get-Volume).DriveLetter + ":"
 
