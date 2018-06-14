@@ -23,28 +23,30 @@ $secstr = New-Object -TypeName System.Security.SecureString
 $adminPassword.ToCharArray() | ForEach-Object {$secstr.AppendChar($_)}
 $credentials = new-object -typename System.Management.Automation.PSCredential -argumentlist $adminUsername, $secstr
 
-# if (!$ISOlocation) {
-#     while ($ISOlocation -notlike "*.iso") {
-#         $ISOLocation = Read-Host -prompt "Please provide the path to the ISO file."
+if (!$ISOlocation) {
+    while ($ISOlocation -notlike "*.iso") {
+        
+        $ISOLocation = Read-Host -prompt "Please provide the path to the ISO file."
+        if (!(Get-ChildItem $ISOlocation -ErrorAction SilentlyContinue) -or $ISOlocation -notlike "*.iso") {
+        
+            Write-Host -ForegroundColor Red "$ISOlocation does not exist or is not an ISO file."
+            $ISOlocation = $null
+        
+        }
+    }
+}
 
 
-#         }
-#     }
-# }
-
-
+<#
 While ($ISOlocation -notlike ".iso") {
     
     $ISOlocation = Get-FileName -initialDirectory "G:\ISO's" -FileType "ISO"
 
-    if (!(Get-ChildItem $ISOlocation -ErrorAction SilentlyContinue)) {
-        Write-Host -ForegroundColor Red "$ISOlocation does not exist"
-        $ISOlocation = $null
 
-    }
+
 
 }
-
+#>
 
 $mountResult = Mount-DiskImage -ImagePath $ISOlocation -PassThru
 
