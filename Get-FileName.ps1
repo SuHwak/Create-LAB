@@ -1,5 +1,4 @@
-﻿Function Get-FileName($InitialDirectory, $Filename, $FilenameDescription ,$FileType, $FileTypeDescription, $Title)
-{  
+﻿Function Get-FileName($InitialDirectory, $Filename, $FilenameDescription ,$FileType, $FileTypeDescription, $Title) {  
  [Reflection.Assembly]::LoadWithPartialName("System.windows.forms") | Out-Null
 
  if (!$Filename) 
@@ -22,3 +21,20 @@
  $OpenFileDialog.ShowDialog() | Out-Null
  $OpenFileDialog.filename
 } #end function Get-FileName
+
+function Get-FolderName ($initialDirectory) {
+
+    if (!$initialDirectory) {
+        $initialDirectory = "MyComputer"
+    }
+
+    $FolderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{
+    RootFolder = $initialDirectory
+    ShowNewFolderButton = $true
+    }
+
+    $FolderBrowser.ShowDialog() | Out-Null
+    $FolderBrowser.SelectedPath
+
+} #end function Get-FolderName
+

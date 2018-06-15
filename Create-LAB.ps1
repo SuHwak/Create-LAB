@@ -1,7 +1,7 @@
 # Assuming Set-ExecutionPolicy RemoteSigned
 
 # Loading Modules
-. "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\Get-FileName.ps1"
+. "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Get-FileName.ps1"
 # . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\Convert-WindowsImage.ps1"
 
 # Setting Variables
@@ -55,7 +55,7 @@ if (!$ISOlocation) {
 if (!$InstallWimLocation) {
     while (!($InstallWimLocation)) {
 
-        $InstallWimLocation = Get-FileName -
+        $InstallWimLocation = Get-FolderName -initialDirectory "g:\iso's"
         
         # $InstallWimLocation = Read-Host -prompt "Please provide the path to where the install.wim file may be copied to."
 
