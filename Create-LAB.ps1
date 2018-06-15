@@ -1,6 +1,7 @@
 # Assuming Set-ExecutionPolicy RemoteSigned
 
 # Loading Modules
+Import-Module BitsTransfer
 . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Get-FileName.ps1"
 # . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\Convert-WindowsImage.ps1"
 
@@ -69,7 +70,9 @@ if (!$InstallWimLocation) {
 
         else {
             Write-Host -ForegroundColor Green "Copying, please wait"
-            Copy-Item -Path $OriginalWimFile.FullName -Destination $InstallWimLocation
+
+            Start-BitsTransfer -Source $OriginalWimFile.FullName -Destination $InstallWimLocation -Description "Copying Install.wim file" -DisplayName "Copying..." 
+            # Copy-Item -Path $OriginalWimFile.FullName -Destination $InstallWimLocation
         }
     }
 }
