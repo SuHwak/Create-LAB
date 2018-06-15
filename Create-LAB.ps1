@@ -28,7 +28,9 @@ $credentials = new-object -typename System.Management.Automation.PSCredential -a
 if (!$ISOlocation) {
     while ($ISOlocation -notlike "*.iso") {
         
-        $ISOLocation = Read-Host -prompt "Please provide the path to the ISO file."
+        $ISOlocation = Get-FileName -initialDirectory "G:\ISO's" -FileType "ISO"
+        
+        # $ISOLocation = Read-Host -prompt "Please provide the path to the ISO file."
         if (!(Get-ChildItem $ISOlocation -ErrorAction SilentlyContinue) -or $ISOlocation -notlike "*.iso") {
         
             Write-Host -ForegroundColor Red "$ISOlocation does not exist or is not an ISO file."
@@ -52,8 +54,10 @@ if (!$ISOlocation) {
 
 if (!$InstallWimLocation) {
     while (!($InstallWimLocation)) {
+
+        $InstallWimLocation = Get-FileName -
         
-        $InstallWimLocation = Read-Host -prompt "Please provide the path to where the install.wim file may be copied to."
+        # $InstallWimLocation = Read-Host -prompt "Please provide the path to where the install.wim file may be copied to."
 
         if (!(Test-Path $InstallWimLocation -ErrorAction SilentlyContinue) -or (Get-ChildItem $InstallWimLocation -Recurse).count -ne 0) { # Test-Path tests if the folder exists, 
                                                                                                                         # counterintuitively, get-childitem returns True if it is empty, and we want the folder to be empty
