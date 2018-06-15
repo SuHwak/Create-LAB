@@ -26,6 +26,7 @@ $secstr = New-Object -TypeName System.Security.SecureString
 $adminPassword.ToCharArray() | ForEach-Object {$secstr.AppendChar($_)}
 $credentials = new-object -typename System.Management.Automation.PSCredential -argumentlist $adminUsername, $secstr
 
+# Find out the ISO file location which contains the Windows image
 if (!$ISOlocation) {
     while ($ISOlocation -notlike "*.iso") {
         
@@ -52,7 +53,7 @@ if (!$ISOlocation) {
     }
 }
 
-
+# Find the location where the WIM file might be copied to
 if (!$InstallWimLocation) {
     while (!($InstallWimLocation)) {
 
@@ -77,3 +78,32 @@ if (!$InstallWimLocation) {
     }
 }
 
+
+
+$LabSwitches = Get-VMSwitch | Where-Object{$_.Name -match "LAB"}
+
+if ($LabSwitches.Name -notmatch "LAB-OUTSIDE") {
+    Write-Host -ForegroundColor Yellow "Switch LAB-OUTSIDE does not yet exist..."
+    $PhysicalNetworkAdapters = Get-NetAdapter -Physical
+
+    $Measure = $PhysicalNetworkAdapters | measure
+
+    Write-Host "Which adapter do you want to user for the LAB-OUTSIDE vSwitch?"
+    $Menu = @{}
+    for ($Counter = 1; $Counter -le $Measure.Count; $Counter++) {
+        Write-Host -fore Green "$Counter. $($PhysicalNetworkAdapters[$counter-1].InterfaceDescription)"
+        $Menu.Add($Counter,($PhysicalNetworkAdapters[$counter-1].ifAlias ))
+    }
+
+    [int]$Answer = Read-Host "Choose the adapter"
+    $SelectedNetAdapter = $Menu.item($Answer)
+
+    Write-Host -fore Yellow "Creating the switch now, Please wait. The connection might be interupted!"
+
+    New-VMSwitch -Name "LAB-OUTSIDE" -NetAdapterName $SelectedNetAdapter
+}
+
+if ($LabSwitches.Name -notmatch "LAB-INSIDE") {
+    Write-Host -ForegroundColor Yellow "Switch LAB-INSIDE does not yet exist, creating it now..."
+    New-VMSwitch -SwitchType Private -Name "LAB-INSIDE"
+}
