@@ -55,7 +55,7 @@ if (!$ISOlocation) {
 if (!$InstallWimLocation) {
     while (!($InstallWimLocation)) {
 
-        $InstallWimLocation = Get-FolderName -initialDirectory "g:\iso's"
+        $InstallWimLocation = Get-FolderName 
         
         # $InstallWimLocation = Read-Host -prompt "Please provide the path to where the install.wim file may be copied to."
 

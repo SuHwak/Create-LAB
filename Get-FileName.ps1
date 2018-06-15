@@ -22,16 +22,15 @@
  $OpenFileDialog.filename
 } #end function Get-FileName
 
-function Get-FolderName ($initialDirectory) {
+function Get-FolderName {
 
     if (!$initialDirectory) {
         $initialDirectory = "MyComputer"
     }
 
-    $FolderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{
-    RootFolder = $initialDirectory
-    ShowNewFolderButton = $true
-    }
+    $FolderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
+    $FolderBrowser.RootFolder = "MyComputer"
+    $FolderBrowser.ShowNewFolderButton = $true
 
     $FolderBrowser.ShowDialog() | Out-Null
     $FolderBrowser.SelectedPath
