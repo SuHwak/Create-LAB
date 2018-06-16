@@ -23,6 +23,7 @@
 } #end function Get-FileName
 
 function Get-FolderName {
+    [Reflection.Assembly]::LoadWithPartialName("System.windows.forms") | Out-Null
 
     if (!$initialDirectory) {
         $initialDirectory = "MyComputer"
