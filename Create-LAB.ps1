@@ -12,7 +12,10 @@ $domainName = "MIVEX.LAB"
 $memberServersCount = 2
 $ISOlocation = $null # will contain the path to the ISO file we use to build an image
 $InstallWimLocation = $null # Will contain the path where the WIM file will be copied to and saved for future use
-#$WimFile = $null
+$WimFile = $null
+$WinDCCoreFileName = "WinDCCore.wim"
+$WinDCGuiFileName = "WinDCGui.wim"
+$WindowsUpdatesLocation = "G:\ISO's\Microsoft\WinUpdates\w100-x64\glb"
 $LabSwitches = @()
 
 # $ethernet = Get-NetAdapter -Name Ethernet
@@ -30,7 +33,7 @@ $credentials = new-object -typename System.Management.Automation.PSCredential -a
 
 # Find out the ISO file location which contains the Windows image
 
-# Find the location where the WIM file might be copied to
+# Find the location where the WIM file might be copied to, if it doesn't exist yet
 while (!($WimFile)) {
 
     if (!($InstallWimLocation)) {
@@ -81,9 +84,42 @@ while (!($WimFile)) {
         
     }
 
-    Dismount-DiskImage $mountResult.ImagePath
+    if ($mountResult) {
+        
+        Dismount-DiskImage $mountResult.ImagePath
+    }
 
 }
+
+$WinDCCoreWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCCoreFileName -ErrorAction SilentlyContinue | select -Property Name,FullName,Directory
+
+if (!$WinDCCoreWimFile) {
+    $InstallWimFileImages = Get-WindowsImage -ImagePath $WimFile.FullName
+
+    $WinDCCoreImage = $InstallWimFileImages | ?{$_.ImageName -match "Datacenter" -and $_.ImageName -notmatch "Desktop" }
+
+    Export-WindowsImage -SourceImagePath $WimFile.FullName -SourceIndex $WinDCCoreImage.ImageIndex -DestinationImagePath $InstallWimLocation\$WinDCCoreFileName -DestinationName "Windows Datacenter Core"
+    $WinDCCoreWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCCoreFileName -ErrorAction SilentlyContinue | select -Property Name,FullName,Directory
+
+}
+
+$WinDCGuiWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCGuiFileName -ErrorAction SilentlyContinue | select -Property Name,FullName,Directory
+
+if (!$WinDCGuiWimFile) {
+    $InstallWimFileImages = Get-WindowsImage -ImagePath $WimFile.FullName
+
+    $WinDCGuiImage = $InstallWimFileImages | ?{$_.ImageName -match "Datacenter" -and $_.ImageName -match "Desktop" }
+
+    Export-WindowsImage -SourceImagePath $WimFile.FullName -SourceIndex $WinDCGuiImage.ImageIndex -DestinationImagePath $InstallWimLocation\$WinDCGuiFileName -DestinationName "Windows Datacenter Desktop Experience"
+    $WinDCGuiWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCGuiFileName -ErrorAction SilentlyContinue | select -Property Name,FullName,Directory
+
+}
+
+
+
+
+
+
 
 # Create the virtual switches if they are missing 
 $LabSwitches = Get-VMSwitch | Where-Object{$_.Name -match "LAB"} | %{$_.Name}
