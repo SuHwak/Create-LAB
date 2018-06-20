@@ -1,6 +1,5 @@
 # Loading Modules
 Import-Module BitsTransfer
-. "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Get-FileName.ps1"
 
 # Setting Variables
 

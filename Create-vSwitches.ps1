@@ -1,3 +1,4 @@
+
 Write-Host -ForegroundColor Green "Creating the vSwitches if they do not exist yet"
 
 # Create the virtual switches if they are missing 
