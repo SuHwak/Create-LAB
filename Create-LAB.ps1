@@ -43,13 +43,8 @@ foreach ($WantedDomainController in $WantedDomainControllers) {
         
         $domainController = get-vm -Name $WantedDomainController
         
-        if ($domainController.HardDrives.Path -ne ) {
-            
-        } $domainController.HardDrives.Path
-        
-        
         if ($domainController.state -eq "Off") {
-            Start-VM $domainController            
+            Start-VM $domainController           
         }
     }
     else {
