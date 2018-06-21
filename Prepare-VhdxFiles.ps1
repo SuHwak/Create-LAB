@@ -16,13 +16,33 @@ $WindowsUpdatesLocation = "G:\ISO's\Microsoft\Windows Server\WindowsServer2016-U
 # Find out the ISO file location which contains the Windows image
 
 # Find the location where the WIM file might be copied to, if it doesn't exist yet
-while (!($WimFile)) {
 
-    if (!($InstallWimLocation)) {
+if (!($InstallWimLocation)) {
 
     $InstallWimLocation = Get-FolderName
     
     }
+
+if (!(Get-ChildItem -Path $InstallWimLocation -Filter "Unattend.Xml")) {
+    if (!(Get-ChildItem -Path $InstallWimLocation -Filter "unattendXml.ps1")) {
+        Write-Host -ForegroundColor Yellow "We need to generate an unattendXml file. Downloading the script now if we do not have it."
+        Save-Script -name UnattendXml -Path $InstallWimLocation -RequiredVersion 0.9.0
+        
+        # remove a bug
+        Set-Content -Path "$InstallWimLocation\unattendXml.ps1" -Value (Get-Content -Path "$InstallWimLocation\unattendXml.ps1" | Select-String -NotMatch -Pattern "Export-ModuleMember -Function UnattendXml")
+    }
+
+    . "$InstallWimLocation\unattendXml.ps1"
+
+    $UnattendFile = [UnattendXml]::new()
+    $UnattendFile.SetAdministratorPassword($adminSecPassword)
+    $GeneratedUnattendXml = $UnattendFile.ToXml()
+    $GeneratedUnattendXml | Out-File $InstallWimLocation\unattend.xml
+
+
+}
+
+while (!($WimFile)) {
 
     $WimFile = Get-ChildItem -Path $InstallWimLocation -Filter "Install.wim" -ErrorAction SilentlyContinue
     
@@ -70,8 +90,7 @@ while (!($WimFile)) {
 
         Write-Host -ForegroundColor Yellow "We now have the install.wim file, but we need Convert-WindowsImage script from the ISO as well"
 
-        Get-ChildItem -path $driveLetter -Include Convert-WindowsImage.ps1 -Recurse | Copy-Item -Destination $InstallWimLocation
-   
+        Get-ChildItem -path $driveLetter -Include Convert-WindowsImage.ps1 -Recurse | Copy-Item -Destination $InstallWimLocation   
     }
 
     if ($mountResult) {
@@ -122,7 +141,7 @@ $PreviouslyDoneUpdates =  Get-ChildItem -path $WindowsUpdatesLocation\done\* -In
 # Retrieving new updates
 
 Write-Host -fore green "Checking Windows Update for updates"
-& 'G:\ISO''s\Microsoft\wsusoffline\cmd\DownloadUpdates.cmd' w100-x64 glb /verify /includewddefs /includedotnet
+#& 'G:\ISO''s\Microsoft\wsusoffline\cmd\DownloadUpdates.cmd' w100-x64 glb /verify /includewddefs /includedotnet
 
 Write-Host -fore green "Copying new updates, please wait..."
 Get-ChildItem -path "G:\ISO's\Microsoft\wsusoffline\client\w100-x64\glb\*" -Include *.cab, *.msu | where{$PreviouslyDoneUpdates.name -notcontains $_.Name} | %{Write-Host "Copying $_"; Copy-Item $_ -Destination $WindowsUpdatesLocation}
@@ -158,7 +177,7 @@ if ($Updatefiles) {
 
     Write-Host -ForegroundColor Green "Done applying updates, dismounting the wim files, saving changes"
 
-    Dismount-WindowsImage -path $DISMMountResultWinDCCore.path -Save
+    Dismount-WindowsImage -path $DISMMountResultWinDCCore.path -Save 
     Dismount-WindowsImage -path $DISMMountResultWinDCGui.path -Save
 
     Write-Host -ForegroundColor Green "Done saving the images into the wim files"
@@ -179,14 +198,14 @@ if (!$WinDCCoreVHDXFileExists) {
     Write-Host -fore Yellow "We DO NOT have a VHDX, converting the WIM file to VHDX"
 
     Write-Host -NoNewline -Fore Yellow "Converting "; Write-Host -NoNewline -Fore Blue $WinDCCoreWimFile.FullName; Write-Host -NoNewline -Fore Yellow " to "; Write-Host -Fore Blue $WinDCCoreVHDXFile
-    Convert-WindowsImage -SourcePath $WinDCCoreWimFile.FullName -VHDPath $WinDCCoreVHDXFile -DiskLayout UEFI
+    Convert-WindowsImage -SourcePath $WinDCCoreWimFile.FullName -VHDPath $WinDCCoreVHDXFile -DiskLayout UEFI -UnattendPath "$InstallWimLocation\unattend.xml"
     
 }
 elseif ((Get-ChildItem $WinDCCoreVHDXFile).LastWriteTime -lt $WinDCCoreWimFile.LastWriteTime) {
     Write-Host -fore Yellow "We have an outdated VHDX, converting the newer WIM file to VHDX"
     
     Write-Host -NoNewline -Fore Yellow "Converting "; Write-Host -NoNewline -Fore Blue $WinDCCoreWimFile.FullName; Write-Host -NoNewline -Fore Yellow " to "; Write-Host -Fore Blue $WinDCCoreVHDXFile
-    Convert-WindowsImage -SourcePath $WinDCCoreWimFile.FullName -VHDPath $WinDCCoreVHDXFile -DiskLayout UEFI
+    Convert-WindowsImage -SourcePath $WinDCCoreWimFile.FullName -VHDPath $WinDCCoreVHDXFile -DiskLayout UEFI -UnattendPath "$InstallWimLocation\unattend.xml"
 
 }
 
@@ -194,7 +213,7 @@ if (!$WinDCGuiVHDXFileExists) {
     Write-Host -fore Yellow "We DO NOT have a VHDX, converting the WIM file to VHDX"
 
     Write-Host -NoNewline -Fore Yellow "Converting "; Write-Host -NoNewline -Fore Blue $WinDCGuiWimFile.FullName; Write-Host -NoNewline -Fore Yellow " to "; Write-Host -Fore Blue $WinDCGuiVHDXFile
-    Convert-WindowsImage -SourcePath $WinDCGuiWimFile.FullName -VHDPath $WinDCGuiVHDXFile -DiskLayout UEFI
+    Convert-WindowsImage -SourcePath $WinDCGuiWimFile.FullName -VHDPath $WinDCGuiVHDXFile -DiskLayout UEFI -UnattendPath "$InstallWimLocation\unattend.xml"
 
 }
 
@@ -202,6 +221,12 @@ elseif ((Get-ChildItem $WinDCGuiVHDXFile).LastWriteTime -lt $WinDCGuiWimFile.Las
     Write-Host -fore Yellow "We have an outdated VHDX, converting the newer WIM file to VHDX"
 
     Write-Host -NoNewline -Fore Yellow "Converting "; Write-Host -NoNewline -Fore Blue $WinDCGuiWimFile.FullName; Write-Host -NoNewline -Fore Yellow " to "; Write-Host -Fore Blue $WinDCGuiVHDXFile
-    Convert-WindowsImage -SourcePath $WinDCGuiWimFile.FullName -VHDPath $WinDCGuiVHDXFile -DiskLayout UEFI
+    Convert-WindowsImage -SourcePath $WinDCGuiWimFile.FullName -VHDPath $WinDCGuiVHDXFile -DiskLayout UEFI -UnattendPath "$InstallWimLocation\unattend.xml"
 }
 
+#Adjusting the boot timeout
+
+
+
+
+Write-Host -fore Green "Done preparing the VHDX files"

@@ -30,3 +30,5 @@ if ($LabSwitches -notcontains "LAB-INSIDE") {
     New-VMSwitch -SwitchType Private -Name "LAB-INSIDE"
 }
 
+
+Write-Host -fore Green "Done preparing the vSwitches"
