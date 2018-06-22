@@ -19,23 +19,9 @@ if (!($InstallWimLocation)) {
     }
 
 if (!(Get-ChildItem -Path $InstallWimLocation -Filter "Unattend.Xml")) {
-    if (!(Get-ChildItem -Path $InstallWimLocation -Filter "unattendXml.ps1")) {
-        Write-Host -ForegroundColor Yellow "We need to generate an unattendXml file. Downloading the script now if we do not have it."
-        Save-Script -name UnattendXml -Path $InstallWimLocation -RequiredVersion 0.9.0
-        
-        # remove a bug
-        Set-Content -Path "$InstallWimLocation\unattendXml.ps1" -Value (Get-Content -Path "$InstallWimLocation\unattendXml.ps1" | Select-String -NotMatch -Pattern "Export-ModuleMember -Function UnattendXml")
-    }
-
-    . "$InstallWimLocation\unattendXml.ps1"
-
-    $UnattendFile = [UnattendXml]::new()
-    $UnattendFile.SetAdministratorPassword($adminSecPassword)
-    $GeneratedUnattendXml = $UnattendFile.ToXml()
-    $GeneratedUnattendXml | Out-File $InstallWimLocation\unattend.xml
-
-
+    # Create the XML file
 }
+
 
 while (!($WimFile)) {
 
