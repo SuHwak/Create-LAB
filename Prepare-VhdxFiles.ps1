@@ -3,11 +3,8 @@ Import-Module BitsTransfer
 
 # Setting Variables
 
-$domainController = "MivexLab-DC1"
-$domainName = "MIVEX.LAB"
-$memberServersCount = 2
-$ISOlocation = $null # will contain the path to the ISO file we use to build an image
-$InstallWimLocation = $null # Will contain the path where the WIM file will be copied to and saved for future use
+#$ISOlocation = $null # will contain the path to the ISO file we use to build an image
+#$InstallWimLocation = $null # Will contain the path where the WIM file will be copied to and saved for future use
 $WimFile = $null
 $WinDCCoreFileName = "WinDCCore.wim"
 $WinDCGuiFileName = "WinDCGui.wim"
