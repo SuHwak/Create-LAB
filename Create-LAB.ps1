@@ -23,12 +23,12 @@ function Test-Credentials ($Vmname) {
     $global:ConnectionSuccesful = $false
     Write-Host -ForegroundColor Yellow "Testing the connection to " $VMName
     
-    $global:vmDomainRoleScript = { $global:vmDomainRole = (Get-WmiObject -computername mivexlab-dc1 -Class Win32_ComputerSystem -Credential $creds).DomainRole; $global:vmDomainRole }
+    $vmDomainRoleScript = { $DomainRole = (Get-WmiObject -Class Win32_ComputerSystem).DomainRole; Write-Host "DomainRole is:" $DomainRole; $DomainRole }
     
     try {
         $session = New-PSSession -VMName $Vmname -Credential $VmADCreds -ErrorAction Stop
         Write-Host -ForegroundColor Green "The domain credentials worked"
-        $global:vmDomainRole = Invoke-Command -Session $session -ScriptBlock $global:vmDomainRoleScript
+        $global:vmDomainRole = Invoke-Command -Session $session -ScriptBlock $vmDomainRoleScript
         $session | Remove-PSSession
         $session = $null
         $global:credentials = New-Object pscredential ($VmADCreds)
@@ -43,7 +43,7 @@ function Test-Credentials ($Vmname) {
     try {
         $session = New-PSSession -VMName $Vmname -Credential $VmLocalCreds -ErrorAction Stop
         Write-Host -ForegroundColor Green "The Local credentials worked"
-        $global:vmDomainRole = Invoke-Command -Session $session -ScriptBlock $global:vmDomainRoleScript
+        $global:vmDomainRole = Invoke-Command -Session $session -ScriptBlock $vmDomainRoleScript -Verbose
         $session | Remove-PSSession
         $session = $null
         $global:credentials = New-Object pscredential ($VmLocalCreds)
@@ -91,16 +91,17 @@ function Set-VMHostName ($VMName,$global:credentials) {
             Write-Host -fore Green "The VM has the correct name." 
         }
     }
-    Wait-VM -VMName $VMName
 }
 
 function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
-
+    
     $global:vmDomainRole = $null
 
     while ($global:vmDomainRole -ne 4 -and $global:vmDomainRole -ne 5) {
 
-        Write-Host -ForegroundColor Yellow "Domain Role is: " $global:vmDomainRole
+        Wait-VM -Vmname $Vmname
+
+        Write-Host -ForegroundColor Yellow "Domain Role $Vmname is: " $global:vmDomainRole
         if ($global:vmDomainRole -eq 3) { # After restart stand-alone server to a member server, the credentials need to change, which doesn't work though the test-credentials function somehow
             $credentials = $VmADCreds
         }
@@ -185,17 +186,18 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
             }
         }
 
-        
-        if ($global:vmDomainRole -ne 4 -and $global:vmDomainRole -ne 5) {
+        if ($global:vmDomainRole -eq 2 -or $global:vmDomainRole -eq 3) {
             Write-Host -ForegroundColor Yellow $VMName "is restarting now, waiting 15 seconds"
             Start-Sleep 15
             Wait-VM -Vmname $VMName
         }
         elseif ($global:vmDomainRole -eq $null) {
-            Write-Host -ForegroundColor Red $global:vmDomainRole "is NULL"
+            Write-Host -ForegroundColor Red "global:vmDomainRole is NULL"
             Wait-VM -Vmname $VMName
             
         }
+        Write-Host -ForegroundColor Yellow "Domain Role $Vmname is now: " $global:vmDomainRole
+
     }
 }
 
@@ -248,4 +250,5 @@ foreach ($WantedDomainController in $WantedDomainControllers) {
     }
 
     Write-Host -ForegroundColor White -BackgroundColor Blue  "                 Finished for $WantedDomainController!                 "
+    $global:vmDomainRole = $null
 }
