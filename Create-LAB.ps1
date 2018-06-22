@@ -22,9 +22,13 @@ $global:credentials = $null
 function Test-Credentials ($Vmname) {
     $global:ConnectionSuccesful = $false
     Write-Host -ForegroundColor Yellow "Testing the connection to " $VMName
+    
+    $global:vmDomainRoleScript = { $global:vmDomainRole = (Get-WmiObject -computername mivexlab-dc1 -Class Win32_ComputerSystem -Credential $creds).DomainRole; $global:vmDomainRole }
+    
     try {
         $session = New-PSSession -VMName $Vmname -Credential $VmADCreds -ErrorAction Stop
         Write-Host -ForegroundColor Green "The domain credentials worked"
+        $global:vmDomainRole = Invoke-Command -Session $session -ScriptBlock $global:vmDomainRoleScript
         $session | Remove-PSSession
         $session = $null
         $global:credentials = New-Object pscredential ($VmADCreds)
@@ -39,6 +43,7 @@ function Test-Credentials ($Vmname) {
     try {
         $session = New-PSSession -VMName $Vmname -Credential $VmLocalCreds -ErrorAction Stop
         Write-Host -ForegroundColor Green "The Local credentials worked"
+        $global:vmDomainRole = Invoke-Command -Session $session -ScriptBlock $global:vmDomainRoleScript
         $session | Remove-PSSession
         $session = $null
         $global:credentials = New-Object pscredential ($VmLocalCreds)
@@ -54,13 +59,12 @@ function Wait-VM ($Vmname) {
 
     Write-Host -fore Yellow "Checking if we can connect to " $VMName
 
-    while((Get-VM -Name $VMName).HeartBeat -ne  'OkApplicationsHealthy')
+    while((Get-VM -Name $VMName).HeartBeat -ne 'OkApplicationsHealthy')
     {
         Start-Sleep -Seconds 5
         Write-Host -ForegroundColor Yellow "$VMname not ready. Waiting"
     }
     Write-Host -ForegroundColor Green "The VM status is now: "(Get-VM -Name $VMName).HeartBeat
-    Start-Sleep 10
     Write-Host -ForegroundColor Yellow "Testing credentials"
     Test-Credentials -Vmname $VMName
 
@@ -92,11 +96,14 @@ function Set-VMHostName ($VMName,$global:credentials) {
 
 function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
 
-    while ($vmDomainRole -ne 4 -and $vmDomainRole -ne 5) {
+    $global:vmDomainRole = $null
 
-        # if ($vmDomainRole -eq 3) { # After restart stand-alone server to a member server, the credentials need to change, which doesn't work though the test-credentials function somehow
-        #     $credentials = $VmADCreds
-        # }
+    while ($global:vmDomainRole -ne 4 -and $global:vmDomainRole -ne 5) {
+
+        Write-Host -ForegroundColor Yellow "Domain Role is: " $global:vmDomainRole
+        if ($global:vmDomainRole -eq 3) { # After restart stand-alone server to a member server, the credentials need to change, which doesn't work though the test-credentials function somehow
+            $credentials = $VmADCreds
+        }
         Invoke-Command -VMName $VMName -Credential $credentials -ArgumentList $VMName, $DomainName, $credentials, $DomainCreds {
             function Set-VmDCIpAddress ($VMName) {
                 Write-Host -fore Yellow "Making sure the internal network adapter of server $VMName is configured"
@@ -120,7 +127,7 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
             Write-Host -ForegroundColor Yellow "The computer role is: " $DomainRole
             if ($DomainRole -eq 2) {
                 # Needs testing
-                $Args[0]
+                Set-VmDCIpAddress -Vmname $args[0]
                 
                 Write-Host -fore Yellow "$($args[0]) is not joined into the $($args[1]) domain"
                 $DomainAddress1 = Resolve-DnsName $args[1] -Server 192.168.1.2 -ErrorAction SilentlyContinue
@@ -147,14 +154,15 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
             }
             elseif ($DomainRole -eq 3) {
                 Write-Host -fore Yellow "This server is a member of a domain, but not a domain controller"
-                
+
+                Set-VmDCIpAddress -VMName $Args[0]
+
                 if (!((Get-WindowsFeature AD-Domain-Services).Installed)) {
                     Write-Host -fore Yellow "Installing the prerquisite binaries for domain services"
 
                     Install-WindowsFeature AD-Domain-Services, DNS -IncludeAllSubFeature -IncludeManagementTools
-                    
                 }
-                Set-VmDCIpAddress -VMName $Args[0]
+                
                 Install-ADDSDomainController -DomainName $env:userdnsdomain -Credential $Args[2] -SafeModeAdministratorPassword $args[2].password -Force
             }
             elseif ($DomainRole -eq 4) {
@@ -176,10 +184,17 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
                 }
             }
         }
-        if ($vmDomainRole -ne 4 -and $vmDomainRole -ne 5) {
+
+        
+        if ($global:vmDomainRole -ne 4 -and $global:vmDomainRole -ne 5) {
             Write-Host -ForegroundColor Yellow $VMName "is restarting now, waiting 15 seconds"
             Start-Sleep 15
             Wait-VM -Vmname $VMName
+        }
+        elseif ($global:vmDomainRole -eq $null) {
+            Write-Host -ForegroundColor Red $global:vmDomainRole "is NULL"
+            Wait-VM -Vmname $VMName
+            
         }
     }
 }
