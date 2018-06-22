@@ -52,6 +52,7 @@ while (!($WimFile)) {
                 $driveLetter = ($mountResult | Get-Volume).DriveLetter + ":"
             
                 $OriginalWimFile = Get-ChildItem -path $driveLetter -Filter install.wim -Recurse -depth 1 -ErrorAction SilentlyContinue
+                $ConvertWindowsImagePSf = Get-ChildItem -path $driveLetter -Filter Convert-WindowsImage.ps1 -Recurse -depth 2 -ErrorAction SilentlyContinue
                 if  (!($OriginalWimFile)) {
                     Write-Host -ForegroundColor red "$isolocation mounted on $driveletter does not contain a install.wim file"
                     
@@ -67,11 +68,11 @@ while (!($WimFile)) {
 
         Start-BitsTransfer -Source $OriginalWimFile.FullName -Destination $InstallWimLocation -Description "Copying Install.wim file" -DisplayName "Copying..." 
         
+        Write-Host -ForegroundColor Yellow "We now have the install.wim file, but we need Convert-WindowsImage script from the ISO as well"
+        Start-BitsTransfer -Source $ConvertWindowsImagePSf.FullName -Destination $InstallWimLocation -Description "Copying Convert-WindowsImage.ps1 file" -DisplayName "Copying..." 
+        
         Write-Host -ForegroundColor Green "Done"
 
-        Write-Host -ForegroundColor Yellow "We now have the install.wim file, but we need Convert-WindowsImage script from the ISO as well"
-
-        Get-ChildItem -path $driveLetter -Include Convert-WindowsImage.ps1 -Recurse | Copy-Item -Destination $InstallWimLocation   
     }
 
     if ($mountResult) {
@@ -91,7 +92,7 @@ if (!$WinDCCoreWimFile) {
 
     $WinDCCoreImage = $InstallWimFileImages | ?{$_.ImageName -match "Datacenter" -and $_.ImageName -notmatch "Desktop" }
     
-    Write-Host -ForegroundColor Green "Creating the Windows Datacenter Gui edition wim file"
+    Write-Host -ForegroundColor Green "Creating the Windows Datacenter Core edition wim file"
     Export-WindowsImage -SourceImagePath $WimFile.FullName -SourceIndex $WinDCCoreImage.ImageIndex -DestinationImagePath $InstallWimLocation\$WinDCCoreFileName -DestinationName "Windows Datacenter Core"
     $WinDCCoreWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCCoreFileName -ErrorAction SilentlyContinue | select -Property Name,FullName,Directory
 
@@ -164,10 +165,6 @@ if ($Updatefiles) {
     Write-Host -ForegroundColor Green "Done saving the images into the wim files"
 }
 
-# .-loading the convert-windowsimage script now.
-. $InstallWimLocation\Convert-WindowsImage.ps1
-
-
 Write-Host -ForegroundColor Green "Checking if we need to convert the wim files to vhdx files so we can boot from them"
 
 $WinDCCoreVHDXFile = "$($WinDCCoreWimFile.Directory)\$($WinDCCoreWimFile.BaseName).vhdx"
@@ -177,6 +174,8 @@ $WinDCGuiVHDXFileExists = Test-Path $WinDCGuiVHDXFile
 
 if (!$WinDCCoreVHDXFileExists) {
     Write-Host -fore Yellow "We DO NOT have a VHDX, converting the WIM file to VHDX"
+    # .-loading the convert-windowsimage script now.
+    . $InstallWimLocation\Convert-WindowsImage.ps1
 
     Write-Host -NoNewline -Fore Yellow "Converting "; Write-Host -NoNewline -Fore Blue $WinDCCoreWimFile.FullName; Write-Host -NoNewline -Fore Yellow " to "; Write-Host -Fore Blue $WinDCCoreVHDXFile
     Convert-WindowsImage -SourcePath $WinDCCoreWimFile.FullName -VHDPath $WinDCCoreVHDXFile -DiskLayout UEFI -UnattendPath "$InstallWimLocation\unattend.xml"
@@ -184,6 +183,8 @@ if (!$WinDCCoreVHDXFileExists) {
 }
 elseif ((Get-ChildItem $WinDCCoreVHDXFile).LastWriteTime -lt $WinDCCoreWimFile.LastWriteTime) {
     Write-Host -fore Yellow "We have an outdated VHDX, converting the newer WIM file to VHDX"
+    # .-loading the convert-windowsimage script now.
+    . $InstallWimLocation\Convert-WindowsImage.ps1
     
     Write-Host -NoNewline -Fore Yellow "Converting "; Write-Host -NoNewline -Fore Blue $WinDCCoreWimFile.FullName; Write-Host -NoNewline -Fore Yellow " to "; Write-Host -Fore Blue $WinDCCoreVHDXFile
     Convert-WindowsImage -SourcePath $WinDCCoreWimFile.FullName -VHDPath $WinDCCoreVHDXFile -DiskLayout UEFI -UnattendPath "$InstallWimLocation\unattend.xml"
@@ -192,6 +193,8 @@ elseif ((Get-ChildItem $WinDCCoreVHDXFile).LastWriteTime -lt $WinDCCoreWimFile.L
 
 if (!$WinDCGuiVHDXFileExists) {
     Write-Host -fore Yellow "We DO NOT have a VHDX, converting the WIM file to VHDX"
+    # .-loading the convert-windowsimage script now.
+    . $InstallWimLocation\Convert-WindowsImage.ps1
 
     Write-Host -NoNewline -Fore Yellow "Converting "; Write-Host -NoNewline -Fore Blue $WinDCGuiWimFile.FullName; Write-Host -NoNewline -Fore Yellow " to "; Write-Host -Fore Blue $WinDCGuiVHDXFile
     Convert-WindowsImage -SourcePath $WinDCGuiWimFile.FullName -VHDPath $WinDCGuiVHDXFile -DiskLayout UEFI -UnattendPath "$InstallWimLocation\unattend.xml"
@@ -200,14 +203,11 @@ if (!$WinDCGuiVHDXFileExists) {
 
 elseif ((Get-ChildItem $WinDCGuiVHDXFile).LastWriteTime -lt $WinDCGuiWimFile.LastWriteTime) {
     Write-Host -fore Yellow "We have an outdated VHDX, converting the newer WIM file to VHDX"
+    # .-loading the convert-windowsimage script now.
+    . $InstallWimLocation\Convert-WindowsImage.ps1
 
     Write-Host -NoNewline -Fore Yellow "Converting "; Write-Host -NoNewline -Fore Blue $WinDCGuiWimFile.FullName; Write-Host -NoNewline -Fore Yellow " to "; Write-Host -Fore Blue $WinDCGuiVHDXFile
     Convert-WindowsImage -SourcePath $WinDCGuiWimFile.FullName -VHDPath $WinDCGuiVHDXFile -DiskLayout UEFI -UnattendPath "$InstallWimLocation\unattend.xml"
 }
-
-#Adjusting the boot timeout
-
-
-
 
 Write-Host -fore Green "Done preparing the VHDX files"
