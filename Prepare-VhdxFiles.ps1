@@ -123,7 +123,7 @@ $PreviouslyDoneUpdates =  Get-ChildItem -path $WindowsUpdatesLocation\done\* -In
 # Retrieving new updates
 
 Write-Host -fore green "Checking Windows Update for updates"
-& 'G:\ISO''s\Microsoft\wsusoffline\cmd\DownloadUpdates.cmd' w100-x64 glb /verify /includewddefs /includedotnet
+#& 'G:\ISO''s\Microsoft\wsusoffline\cmd\DownloadUpdates.cmd' w100-x64 glb /verify /includewddefs /includedotnet
 
 Write-Host -fore green "Copying new updates, please wait..."
 Get-ChildItem -path "G:\ISO's\Microsoft\wsusoffline\client\w100-x64\glb\*" -Include *.cab, *.msu | where{$PreviouslyDoneUpdates.name -notcontains $_.Name} | %{Write-Host "Copying $_"; Copy-Item $_ -Destination $WindowsUpdatesLocation}
