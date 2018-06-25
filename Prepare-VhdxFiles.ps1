@@ -13,7 +13,7 @@ $WindowsUpdatesLocation = "G:\ISO's\Microsoft\Windows Server\WindowsServer2016-U
 # Find the location where the WIM file might be copied to, if it doesn't exist yet
 
 if (!($InstallWimLocation)) {
-
+    . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Get-FileName.ps1"
     $InstallWimLocation = Get-FolderName
     
     }
@@ -83,7 +83,7 @@ while (!($WimFile)) {
 }
 
 Write-Host -ForegroundColor Yellow "Checking if the Windows Datacenter Core edition wim file already exists"
-$WinDCCoreWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCCoreFileName -ErrorAction SilentlyContinue | select -Property Name,BaseName,FullName,Directory,LastWriteTime
+$WinDCCoreWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCCoreFileName -ErrorAction SilentlyContinue | select -Property Name,FullName,Directory,LastWriteTime
 
 if (!$WinDCCoreWimFile) {
 
@@ -99,7 +99,7 @@ if (!$WinDCCoreWimFile) {
 }
 Write-Host -ForegroundColor Green "Found or created the Windows Datacenter Core edition wim file"
 Write-Host -ForegroundColor Yellow "Checking if the Windows Datacenter Gui edition wim file already exists"
-$WinDCGuiWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCGuiFileName -ErrorAction SilentlyContinue | select -Property Name,BaseName,FullName,Directory,LastWriteTime
+$WinDCGuiWimFile = Get-ChildItem -Path $InstallWimLocation -Filter $WinDCGuiFileName -ErrorAction SilentlyContinue | select -Property Name,FullName,Directory,LastWriteTime
 
 if (!$WinDCGuiWimFile) {
 
@@ -167,8 +167,8 @@ if ($Updatefiles) {
 
 Write-Host -ForegroundColor Green "Checking if we need to convert the wim files to vhdx files so we can boot from them"
 
-$WinDCCoreVHDXFile = "$($WinDCCoreWimFile.Directory)\$($WinDCCoreWimFile.BaseName).vhdx"
-$WinDCGuiVHDXFile = "$($WinDCGuiWimFile.Directory)\$($WinDCGuiWimFile.BaseName).vhdx"
+$WinDCCoreVHDXFile = "$($WinDCCoreWimFile.Directory)\$(($WinDCCoreWimFile).Name.split(".")[0]).vhdx"
+$WinDCGuiVHDXFile = "$($WinDCGuiWimFile.Directory)\$(($WinDCGuiWimFile).Name.split(".")[0]).vhdx"
 $WinDCCoreVHDXFileExists = Test-Path $WinDCCoreVHDXFile
 $WinDCGuiVHDXFileExists = Test-Path $WinDCGuiVHDXFile
 

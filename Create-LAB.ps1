@@ -7,6 +7,7 @@
 
 $WantedDomainControllers = "MivexLab-DC1","MivexLab-DC2"
 $domainName = "MIVEX.LAB"
+$ConfigureDHCP = $false
 $NetbiosDomainName = $domainName.split(".")[0]
 # $memberServersCount = 2
 
@@ -58,8 +59,8 @@ function Test-Credentials ($Vmname) {
 function Wait-VM ($Vmname) {
 
     Write-Host -fore Yellow "Checking if we can connect to " $VMName
-
-    while((Get-VM -Name $VMName).HeartBeat -ne 'OkApplicationsHealthy')
+    $VMHeartBeat = (Get-VM -Name $VMName).HeartBeat
+    while($VMHeartBeat -ne 'OkApplicationsHealthy' -or $VMHeartBeat -ne "OkApplicationsUnknown")
     {
         Start-Sleep -Seconds 5
         Write-Host -ForegroundColor Yellow "$VMname not ready. Waiting"
@@ -75,6 +76,7 @@ function Wait-VM ($Vmname) {
         Test-Credentials -Vmname $VMName
         
     }
+    $VMHeartBeat = (Get-VM -Name $VMName).HeartBeat
 }
 
 function Set-VMHostName ($VMName,$global:credentials) {
@@ -113,13 +115,11 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
                     Write-Host -fore Yellow "This server is $VMName"
                     New-NetIPAddress -InterfaceAlias $InternalVMAdapter.InterfaceAlias -AddressFamily IPv4 -IPAddress 192.168.1.1 -DefaultGateway 192.168.1.1 -PrefixLength 24
                     Set-DnsClientServerAddress -InterfaceAlias $InternalVMAdapter.InterfaceAlias -ServerAddresses ("192.168.1.1","192.168.1.2")
-
                 }
                 elseif ($VMName -eq "MivexLab-DC2") {
                     Write-Host -fore Yellow "This server is $VMName"
                     New-NetIPAddress -InterfaceAlias $InternalVMAdapter.InterfaceAlias -AddressFamily IPv4 -IPAddress 192.168.1.2 -DefaultGateway 192.168.1.1 -PrefixLength 24
                     Set-DnsClientServerAddress -InterfaceAlias $InternalVMAdapter.InterfaceAlias -ServerAddresses ("192.168.1.1","192.168.1.2")
-
                 }
             }
             
@@ -127,7 +127,6 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
 
             Write-Host -ForegroundColor Yellow "The computer role is: " $DomainRole
             if ($DomainRole -eq 2) {
-                # Needs testing
                 Set-VmDCIpAddress -Vmname $args[0]
                 
                 Write-Host -fore Yellow "$($args[0]) is not joined into the $($args[1]) domain"
@@ -251,4 +250,9 @@ foreach ($WantedDomainController in $WantedDomainControllers) {
 
     Write-Host -ForegroundColor White -BackgroundColor Blue  "                 Finished for $WantedDomainController!                 "
     $global:vmDomainRole = $null
+}
+
+
+if ($ConfigureDHCP) {
+    
 }
