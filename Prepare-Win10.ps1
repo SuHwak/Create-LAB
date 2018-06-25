@@ -157,6 +157,8 @@ if ($CurrentVms.Name -contains $ManagmentVM) {
 
 }
 else {
+
+    Write-Host -fore Yellow "$ManagmentVM does not exist yet, creating it now..."
     $vHDManagmentVM = Copy-Item -Path $Win10EntVHDXFile.FullName -Destination "$((Get-VMHost).VirtualHardDiskPath)\$ManagmentVM.vhdx" -PassThru
 
     $ManagmentVM = New-VM -Name $ManagmentVM -VHDPath $vHDManagmentVM -MemoryStartupBytes 4GB -Generation 2
@@ -177,7 +179,9 @@ Set-VMHostName -VMName $ManagmentVM.Name -credentials $global:credentials
 
 Wait-VM -Vmname $ManagmentVM.Name
 
-Invoke-Command -VMName $ManagmentVM.Name -credential $global:credentials -ArgumentList $ManagmentVM.Name,$domainName{
+Invoke-Command -VMName $ManagmentVM.Name -credential $global:credentials -ArgumentList $ManagmentVM.Name,$domainName,$VmADCreds {
+
+    Write-Host -ForegroundColor Yellow "Checking computer role..."
 
     $DomainRole = (Get-WmiObject -Class Win32_ComputerSystem).DomainRole
 
@@ -190,11 +194,16 @@ Invoke-Command -VMName $ManagmentVM.Name -credential $global:credentials -Argume
         $DomainAddress2 = Resolve-DnsName $args[1] -Server 192.168.1.1 -ErrorAction SilentlyContinue
         if (!($DomainAddress1 -or $DomainAddress2)) {
             # There is no domain available to join.
-            Write-Host -fore Red "There is no domain to join"
+            Write-Host -fore Red "There is no domain to join!"
 
             Get-NetAdapterAdvancedProperty
 
             Break
+        }
+        else {
+            Write-Host -fore Green "We have a domain, joining it now."
+
+            Add-Computer -DomainName $args[1] -Credential $args[2]
         }
     }
 }
