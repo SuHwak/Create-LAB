@@ -1,3 +1,9 @@
+# Supply a PSCredential object
+Param(
+    [Parameter(Mandatory=$true)]
+    [pscredential]$adminCreds
+)
+
 function Test-Credentials ($Vmname) {
     $global:ConnectionSuccesful = $false
     Write-Host -ForegroundColor Yellow "Testing the connection to " $VMName
@@ -64,7 +70,7 @@ function Set-VMHostName ($VMName,$global:credentials) {
 
     $HadToRename = Invoke-Command -VMName $VMName -Credential $global:credentials -ArgumentList $VMName {
         if ($env:COMPUTERNAME -ne $args[0]) {
-            Write-Host -fore Yellow "This VM does not have the correct name, renaming it now, then restarting it."
+            Write-Host -fore Yellow "This VM $env:COMPUTERNAME does not have the correct name, renaming it to $($args[0]) now, then restarting it."
             Rename-Computer $args[0]
             $HadToRename = $true
             Restart-Computer -Force
@@ -78,7 +84,8 @@ function Set-VMHostName ($VMName,$global:credentials) {
         }
     }
     if ($HadToRename) {
-        Wait-VM -Vmname $Vmname
+        Write-Host "The computer has been renamed, waiting 60 seconds for it to come back."
+        Start-Sleep 60
     }
 }
 
@@ -88,7 +95,16 @@ $NetbiosDomainName = $domainName.split(".")[0]
 # Set Administrator Password
 
 $adminUsername = "administrator"
-$adminCreds = Get-Credential -Message "Provide password" -UserName $adminUsername 
+# if ($Args[0]) { # if we run this in a job, we need to pass the credentials from outside
+#     $adminCreds = $args[0]
+# }
+
+Write-Host -fore Green "These are the credentials passed:"; $adminCreds | ft
+Write-Host - fore Green "This is the VMName:" $
+
+if (!$adminCreds) {
+   $adminCreds = Get-Credential -Message "Provide password" -UserName $adminUsername 
+}
 
 $VmADCreds = New-Object pscredential ("$($NetbiosDomainName)\$($adminUsername)", $adminCreds.Password)
 $VmLocalCreds =  New-Object pscredential ($adminUsername, $adminCreds.Password)
@@ -173,14 +189,24 @@ else {
 
 }
 
-Write-Host -fore Yellow "Checking if " $ManagmentVM.Name " has the correct name."
+Write-Host -fore Yellow "Checking if" $ManagmentVM.Name "has the correct name."
 
 Set-VMHostName -VMName $ManagmentVM.Name -credentials $global:credentials
 
 Wait-VM -Vmname $ManagmentVM.Name
 
-Invoke-Command -VMName $ManagmentVM.Name -credential $global:credentials -ArgumentList $ManagmentVM.Name,$domainName,$VmADCreds {
+# Write-Host -ForegroundColor Yellow "Removing Appx..."
 
+# Invoke-Command -VMName $ManagmentVM.Name -credential $global:credentials -FilePath "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Invoke-RemoveBuiltInApps.ps1"
+
+# The next part enables the script to run paralel to the Create-Lab script.
+# In fact, this script is called from Create-Lab if so desired.
+
+$vmDomainRoleScript = { $DomainRole = (Get-WmiObject -Class Win32_ComputerSystem).DomainRole; Write-Host "DomainRole is:" $DomainRole; $DomainRole }
+
+$DomainRole = Invoke-Command -VMName $ManagmentVM.Name -Credential $global:credentials -ScriptBlock $vmDomainRoleScript
+
+$Scriptblock = {    
     Write-Host -ForegroundColor Yellow "Checking computer role..."
 
     $DomainRole = (Get-WmiObject -Class Win32_ComputerSystem).DomainRole
@@ -194,16 +220,41 @@ Invoke-Command -VMName $ManagmentVM.Name -credential $global:credentials -Argume
         $DomainAddress2 = Resolve-DnsName $args[1] -Server 192.168.1.1 -ErrorAction SilentlyContinue
         if (!($DomainAddress1 -or $DomainAddress2)) {
             # There is no domain available to join.
-            Write-Host -fore Red "There is no domain to join!"
+            Write-Host -fore Red "There is no domain to join yet!"
 
             Get-NetAdapterAdvancedProperty
 
-            Break
+            Write-Host -fore Yellow "Sleeping for 30 seconds"
+            Start-Sleep 30
+
+            #releasing and renewing the IP address to make sure we get a DHCP IP when it is available.
+
+            $DHCPNetAdapters = Get-WmiObject -Class Win32_NetworkAdapterConfiguration | ?{$_.IpEnabled -eq $true -and $_.DhcpEnabled -eq $true}
+
+            foreach ($DHCPNetAdapter in $DHCPNetAdapters) {
+                Write-Host -fore Yellow "Flushing IP Addresses"
+                Start-Sleep 2
+                $DHCPNetAdapter.ReleaseDHCPLease() | Out-Null
+                Write-Host -fore Green "Renewing DHCP Lease"
+                $DHCPNetAdapter.RenewDHCPLease() | Out-Null
+                Write-Host -fore Green "The new IP adresses is" $DHCPNetAdapter.IPaddress
+            }
+
+
         }
         else {
             Write-Host -fore Green "We have a domain, joining it now."
 
             Add-Computer -DomainName $args[1] -Credential $args[2]
+            Restart-Computer -Force
         }
     }
+
+    $DomainRole = (Get-WmiObject -Class Win32_ComputerSystem).DomainRole
+    $DomainRole
+}
+
+while ($DomainRole -eq 0) {
+    $DomainRole = Invoke-Command -VMName $ManagmentVM.Name -credential $global:credentials -ArgumentList $ManagmentVM.Name,$domainName,$VmADCreds -ScriptBlock $Scriptblock
+    Write-Host -ForegroundColor Green "Domain role is:" $DomainRole
 }

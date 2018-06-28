@@ -123,7 +123,24 @@ $PreviouslyDoneUpdates =  Get-ChildItem -path $WindowsUpdatesLocation\done\* -In
 # Retrieving new updates
 
 Write-Host -fore green "Checking Windows Update for updates"
-#& 'G:\ISO''s\Microsoft\wsusoffline\cmd\DownloadUpdates.cmd' w100-x64 glb /verify /includewddefs /includedotnet
+
+$UpdateDate = Get-ChildItem "$WindowsUpdatesLocation\done\" -filter "Updated.log"
+
+if (!$UpdateDate) {
+    Write-Host -fore Yellow "We have no record that we updated in the last day, retrieving updates now"
+    #& 'G:\ISO''s\Microsoft\wsusoffline\cmd\DownloadUpdates.cmd' w100-x64 glb /verify /includewddefs /includedotnet
+    Get-Date | Out-File -FilePath "$WindowsUpdatesLocation\done\Updated.log"
+}
+elseif ($UpdateDate.LastWriteTime -lt (Get-Date).AddDays(-1)) {
+    Write-Host -fore Yellow "We have not updated in the last day, retrieving updates now"
+    #& 'G:\ISO''s\Microsoft\wsusoffline\cmd\DownloadUpdates.cmd' w100-x64 glb /verify /includewddefs /includedotnet
+    Get-Date | Out-File -FilePath $UpdateDate
+
+}
+else {
+    Write-Host -fore Green "We have already updated within the last 24 hours. Skipping downloading updates"
+}
+
 
 Write-Host -fore green "Copying new updates, please wait..."
 Get-ChildItem -path "G:\ISO's\Microsoft\wsusoffline\client\w100-x64\glb\*" -Include *.cab, *.msu | where{$PreviouslyDoneUpdates.name -notcontains $_.Name} | %{Write-Host "Copying $_"; Copy-Item $_ -Destination $WindowsUpdatesLocation}

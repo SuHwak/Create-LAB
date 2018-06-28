@@ -56,10 +56,11 @@ function Wait-VM ($Vmname) {
 
     Write-Host -fore Yellow "Checking if we can connect to " $VMName
     $VMHeartBeat = (Get-VM -Name $VMName).HeartBeat
-    while($VMHeartBeat -ne 'OkApplicationsHealthy' -or $VMHeartBeat -ne "OkApplicationsUnknown")
+    while($VMHeartBeat -ne 'OkApplicationsHealthy')
     {
         Start-Sleep -Seconds 5
         Write-Host -ForegroundColor Yellow "$VMname not ready. Waiting"
+        $VMHeartBeat = (Get-VM -Name $VMName).HeartBeat
     }
     Write-Host -ForegroundColor Green "The VM status is now: "(Get-VM -Name $VMName).HeartBeat
     Write-Host -ForegroundColor Yellow "Testing credentials"
@@ -92,54 +93,52 @@ else {
 
 if ($domainControllers.Count -lt 1) {
     Write-Host -ForegroundColor Red "We don't have any domain controllers! Please run `"Create-Lab.ps1`" first."
+    BREAK
 }
 
-Write-Host -fore Yellow "On which of these domain controllers do you want to install the DHCP service?"
-$index = 0
+$DHCPInstalledState = @()
 foreach ($domainController in $domainControllers) {
-    $index++
-    Write-Host -ForegroundColor Green "$index. " $domainController
+    $scriptBlock = {
+        $DHCPInstalledState = (Get-WindowsFeature -Name "DHCP").Installed
+        $DHCPInstalledState
+    }
+    Wait-VM -Vmname $domainController
+    $DHCPInstalledState += Invoke-Command -VMName $domainController -Credential $global:credentials -ScriptBlock $scriptBlock
+}
+
+if ($DHCPInstalledState -contains "True") {
+    Write-Host -ForegroundColor Green "We have a DHPC server already"
+}
+else {
+    Write-Host -ForegroundColor Yellow "We do not have a DHPC server, installing now"
+    $WantedDHCPServer = $domainControllers[0]
     
+    Invoke-Command -VMName $WantedDHCPServer -Credential $global:credentials {
+        Install-WindowsFeature -Name "DHCP"
+        
+        Add-DhcpServerInDC
+        Set-DhcpServerv4DnsSetting -DynamicUpdates "Always" -DeleteDnsRRonLeaseExpiry $True
+        Add-DhcpServerv4Scope -Name "MivexLab DHCP Scope" -StartRange 192.168.1.100 -EndRange 192.168.1.200 -Subnet 255.255.255.0 -leaseduration 4:00:00 -State Active
+        Set-DhcpServerv4OptionValue -DnsServer 192.168.1.1, 192.168.1.2 -DNSDomain "Mivex.Lab" -Router 192.168.1.1
+        
+        $DoWeHaveNAT = Get-NetNat
+    
+        if (!$DoWeHaveNAT) {
+            New-NetNat -Name "MivexLab-NAT" -InternalIPInterfaceAddressPrefix 192.168.1.0/24
+        }
+        else {
+            Write-Host -fore Green "The NAT already exists"
+        }
+    
+    
+    }
 }
-$DCchoice = $null
-while ($DCchoice -le 0 -or $DCchoice -gt $index) {
-    [int]$DCchoice = Read-Host "Choose the DC"
-}
+
 $WantedDHCPServer = $domainControllers[$DCchoice-1]
 Write-Host -fore Green "Chosen DC: " -NoNewline ; Write-Host -ForegroundColor Blue $WantedDHCPServer
 
-Wait-VM -Vmname $WantedDHCPServer
-
-Invoke-Command -VMName $WantedDHCPServer -Credential $global:credentials {
-    $DHCPInstalledState = (get-windowsfeature -Name "DHCP").Installed
-    $DHCPInstalledState
-
-    if (!($DHCPInstalledState)) {
-        Write-Host -ForegroundColor Yellow "The DHCP server role has not yet been installed. Installing now..."
-        Install-WindowsFeature -Name "DHCP" -IncludeManagementTools
-    }
-    else {
-        Write-Host -ForegroundColor Green "The DHCP Role has already been installed"
-    }
-    netsh dhcp add securitygroups
-    Restart-service dhcpserver
-    # Add-DhcpServerInDC -DnsName DHCP1.corp.contoso.com -IPAddress 192.168.1.1
-    # Get-DhcpServerInDC
-    # Set-DhcpServerv4DnsSetting -DynamicUpdates "Always" -DeleteDnsRRonLeaseExpiry $True
-    # Add-DhcpServerv4Scope -Name "MivexLab DHCP Scope" -StartRange 192.168.1.100 -EndRange 192.168.1.200 -Subnet 255.255.255.0 -leaseduration 4:00:00 -State Active
-    # Set-DhcpServerv4OptionValue -ScopeId "MivexLab DHCP Scope" -DnsServer 192.168.1.1, 192.168.1.2 -DNSDomain "Mivex.Lab" -Router 192.168.1.1
-    
-    $DoWeHaveNAT = Get-NetNat
-
-    if (!$DoWeHaveNAT) {
-        New-NetNat -Name "MivexLab-NAT" -InternalIPInterfaceAddressPrefix 192.168.1.0/24
-    }
-    else {
-        Get-NetNat | Remove-NetNat
-        New-NetNat -Name "MivexLab-NAT" -InternalIPInterfaceAddressPrefix 192.168.1.0/24
-    }
 
 
-}
+
 
 

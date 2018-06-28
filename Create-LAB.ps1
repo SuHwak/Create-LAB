@@ -7,7 +7,8 @@
 
 $WantedDomainControllers = "MivexLab-DC1","MivexLab-DC2"
 $domainName = "MIVEX.LAB"
-$ConfigureDHCP = $false
+$ConfigureDHCP = $true
+$CreateMgtVM = $true
 $NetbiosDomainName = $domainName.split(".")[0]
 # $memberServersCount = 2
 
@@ -22,7 +23,7 @@ $global:credentials = $null
 
 function Test-Credentials ($Vmname) {
     $global:ConnectionSuccesful = $false
-    Write-Host -ForegroundColor Yellow "Testing the connection to " $VMName
+    Write-Host -ForegroundColor Yellow "Testing the connection to" $VMName
     
     $vmDomainRoleScript = { $DomainRole = (Get-WmiObject -Class Win32_ComputerSystem).DomainRole; Write-Host "DomainRole is:" $DomainRole; $DomainRole }
     
@@ -58,12 +59,13 @@ function Test-Credentials ($Vmname) {
 
 function Wait-VM ($Vmname) {
 
-    Write-Host -fore Yellow "Checking if we can connect to " $VMName
+    Write-Host -fore Yellow "Checking if we can connect to" $VMName
     $VMHeartBeat = (Get-VM -Name $VMName).HeartBeat
-    while($VMHeartBeat -ne 'OkApplicationsHealthy' -or $VMHeartBeat -ne "OkApplicationsUnknown")
+    while($VMHeartBeat -ne 'OkApplicationsHealthy')
     {
         Start-Sleep -Seconds 5
         Write-Host -ForegroundColor Yellow "$VMname not ready. Waiting"
+        $VMHeartBeat = (Get-VM -Name $VMName).HeartBeat
     }
     Write-Host -ForegroundColor Green "The VM status is now: "(Get-VM -Name $VMName).HeartBeat
     Write-Host -ForegroundColor Yellow "Testing credentials"
@@ -87,15 +89,16 @@ function Set-VMHostName ($VMName,$global:credentials) {
         if ($env:COMPUTERNAME -ne $args[0]) {
             Write-Host -fore Yellow "This VM does not have the correct name, renaming it now, then restarting it."
             Rename-Computer $args[0]
+            Write-Host -fore Yellow "Restarting to effect the name change."
             Restart-Computer
         }
         else {
-            Write-Host -fore Green "The VM has the correct name." 
+            Write-Host -fore Green "The VM already has the correct name." 
         }
     }
 }
 
-function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
+function New-ADForest ($VMName, $global:credentials, $DomainName, $DomainCreds) {
     
     $global:vmDomainRole = $null
 
@@ -103,21 +106,21 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
 
         Wait-VM -Vmname $Vmname
 
-        Write-Host -ForegroundColor Yellow "Domain Role $Vmname is: " $global:vmDomainRole
+        Write-Host -ForegroundColor Green "Domain Role $Vmname is: " $global:vmDomainRole
         if ($global:vmDomainRole -eq 3) { # After restart stand-alone server to a member server, the credentials need to change, which doesn't work though the test-credentials function somehow
             $credentials = $VmADCreds
         }
-        Invoke-Command -VMName $VMName -Credential $credentials -ArgumentList $VMName, $DomainName, $credentials, $DomainCreds {
+        Invoke-Command -VMName $VMName -Credential $global:credentials -ArgumentList $VMName, $DomainName, $credentials, $DomainCreds {
             function Set-VmDCIpAddress ($VMName) {
                 Write-Host -fore Yellow "Making sure the internal network adapter of server $VMName is configured"
                 $InternalVMAdapter = Get-NetAdapterAdvancedProperty -DisplayName "Hyper-V Network Adapter Name" | where {$_.DisplayValue -eq "LAB-INSIDE"}
                 if ($VMName -eq "MivexLab-DC1") {
-                    Write-Host -fore Yellow "This server is $VMName"
+                    Write-Host -fore Yellow "This server is $VMName, so setting IP address to 192.168.1.1"
                     New-NetIPAddress -InterfaceAlias $InternalVMAdapter.InterfaceAlias -AddressFamily IPv4 -IPAddress 192.168.1.1 -DefaultGateway 192.168.1.1 -PrefixLength 24
                     Set-DnsClientServerAddress -InterfaceAlias $InternalVMAdapter.InterfaceAlias -ServerAddresses ("192.168.1.1","192.168.1.2")
                 }
                 elseif ($VMName -eq "MivexLab-DC2") {
-                    Write-Host -fore Yellow "This server is $VMName"
+                    Write-Host -fore Yellow "This server is $VMName, so setting IP address to 192.168.1.2"
                     New-NetIPAddress -InterfaceAlias $InternalVMAdapter.InterfaceAlias -AddressFamily IPv4 -IPAddress 192.168.1.2 -DefaultGateway 192.168.1.1 -PrefixLength 24
                     Set-DnsClientServerAddress -InterfaceAlias $InternalVMAdapter.InterfaceAlias -ServerAddresses ("192.168.1.1","192.168.1.2")
                 }
@@ -125,7 +128,7 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
             
             $DomainRole = (Get-WmiObject -Class Win32_ComputerSystem).DomainRole
 
-            Write-Host -ForegroundColor Yellow "The computer role is: " $DomainRole
+            Write-Host -ForegroundColor Yellow "The Server role is: " $DomainRole
             if ($DomainRole -eq 2) {
                 Set-VmDCIpAddress -Vmname $args[0]
                 
@@ -185,11 +188,18 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
             }
         }
 
+
         if ($global:vmDomainRole -eq 2 -or $global:vmDomainRole -eq 3) {
             Write-Host -ForegroundColor Yellow $VMName "is restarting now, waiting 15 seconds"
             Start-Sleep 15
             Wait-VM -Vmname $VMName
         }
+        if ($global:vmDomainRole -eq 5 ) {
+            Write-Host -fore Yellow "Adding GPO policies"
+
+            Invoke-Command -VMName $VMName -Credential $global:credentials -FilePath "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\New-GroupPolicyObjects.ps1"
+        }
+
         elseif ($global:vmDomainRole -eq $null) {
             Write-Host -ForegroundColor Red "global:vmDomainRole is NULL"
             Wait-VM -Vmname $VMName
@@ -204,6 +214,12 @@ function New-ADForest ($VMName, $credentials, $DomainName, $DomainCreds) {
 . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Prepare-VhdxFiles.ps1"
 
 . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Create-vSwitches.ps1"
+
+if ($CreateMgtVM -eq $true) {
+
+    Write-Host -fore Green "Starting the job to create the management VM"
+    Start-Job -Name "Prepare Win 10" -ArgumentList $global:credentials -ScriptBlock {. 'C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Prepare-Win10.ps1' -adminCreds $args[0]}
+}
 
 $CurrentVms = Get-VM
 
@@ -254,5 +270,5 @@ foreach ($WantedDomainController in $WantedDomainControllers) {
 
 
 if ($ConfigureDHCP) {
-    
+    . "C:\Users\mverm\OneDrive\Tools\PowerShell Scripts and Commandlets\LAB\Configure-LabDHCPServer.ps1"
 }
